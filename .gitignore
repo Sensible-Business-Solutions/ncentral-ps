@@ -1,0 +1,3 @@
+# Ignore any files in the output directory... They will stop GitHub pushes!
+**/output/*
+**/output
