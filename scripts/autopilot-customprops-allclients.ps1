@@ -26,7 +26,7 @@ Import-Module ".\PS-NCentral"
 
 #! ==== Configuration below ====
 #? Which client are we looking for? (*? wildcards available)
-$customer_name_matching = "*McNair*"
+$customer_name_matching = "*Climate*"
 
 #? What name should the endpoint match? (*? wildcards available)
 $asset_name_matching = "*"
@@ -62,7 +62,7 @@ $NC = New-NCentralConnection -ServerFQDN "ncentral.sensible.com.au" -PSCredentia
 [Int]$CLIENT_MASTER = 50 # Sensible top-level client ID
 [HashTable]$map_clients_parent_to_children = @{}  # $var[id_of_parent_client] = (client1,client2,...)
 [HashTable]$map_clients_id_to_name = @{}          # $var$this_parent] = "client name"
-[HashTable]$map_client_to_devices = @{}           # $var$this_parent]["device_serial_no"] = "device hardware hash"
+#?Not implemented---> [HashTable]$map_client_to_devices = @{}           # $var$this_parent]["device_serial_no"] = "device hardware hash"
 
 
 
@@ -123,8 +123,6 @@ Get-NCCustomerList
 
 #! Get devices for all identified clients here
 [Array]$filtered_parent_clients = ($map_clients_parent_to_children.Keys | Where-Object { $map_clients_id_to_name[$_] -ilike $customer_name_matching })
-[Array]$filtered_parent_children_devices_props = @()
-[Array]$combined_client_ids = @()
 Write-Host "DEBUG: Identified $($filtered_parent_clients.Count) parent clients who match filter '$($customer_name_matching)'"
 foreach ($this_parent in $filtered_parent_clients) {
     #?Write-Host "DEBUG: Parent client ID ($($this_parent)) => '$($map_clients_id_to_name[$this_parent])' => ($($map_clients_parent_to_children[$this_parent]))"
@@ -138,21 +136,27 @@ foreach ($this_parent in $filtered_parent_clients) {
             | Select-Object -Property deviceid
         }
     )
-    Write-Host "Downloading custom properties for $($this_parent_children_assets.Count) devices under parent $($this_parent) ($($map_clients_id_to_name[$this_parent]))"
+    # Get all relevant devices (under this parent client) custom props, then store them to $assets_with_props
+    $count_current = 0
+    $count_total = $this_parent_children_assets.Count
+    Write-Host "Downloading custom properties for $($count_total) devices under parent $($this_parent) ($($map_clients_id_to_name[$this_parent]))"
     $assets_with_props = (
         $this_parent_children_assets.deviceid | ForEach-Object {
+            $count_current += 1
+            $percent_completed = [math]::Round(($count_current/$count_total)*100,2)
+            Write-Progress -Activity "Downloading" -Status "$($percent_completed)% Complete:" -PercentComplete $percent_completed
             $NC.DevicePropertyList($PSItem, $null, $null, $null, $false)
             #! Changed to auto-output the stupid way
             #| Select-Object -Property "DeviceID",@{Name="SerialNumber";Expression={$_."Serial Number"}},@{Name="HardwareHash";Expression={$_."Hardware ID Hash"}}
             | Select-Object -Property @{Name="SerialNumber";Expression={$_."Serial Number"}},@{Name="DUMMY_ENTRY_HERE";Expression={""}},@{Name="HardwareHash";Expression={$_."Hardware ID Hash"}}
             | Where-Object { `
-                $_.SerialNumber.length -gt 0 `
-                -and $_.HardwareHash.length -gt 0 `
-                -and $_.SerialNumber -ne "PCSerialNumber" `
-                -and $_.HardwareHash -ne "HardwareIDHash" `
+                ($_.SerialNumber.length -gt 0 -and $_.HardwareHash.length -gt 0) `
+                -and ($_.SerialNumber -ne "PCSerialNumber" -or $_.HardwareHash -ne "HardwareIDHash") `
             }
         }
     )
+    # Clear the progress bar...
+    Write-Progress -Activity "Downloading" -Status "Ready" -Completed
     Write-Host "DEBUG: Identified $($assets_with_props.Count) assets with desired properties populated, under parent $($this_parent)"
     # Output as CSV if >0 results!
     if ($assets_with_props.Count -gt 0) {
@@ -160,9 +164,7 @@ foreach ($this_parent in $filtered_parent_clients) {
         #$assets_with_props | Export-Csv -Path "$($out_dir_main)$($map_clients_id_to_name[$this_parent]).csv" -NoTypeInformation
         $assets_with_props | ConvertTo-Csv -UseQuotes Never | Select-Object -Skip 1 | Out-File "$($out_dir_main)$($map_clients_id_to_name[$this_parent]).csv"
     }
-}#   - "Serial Number"
-#   - "Hardware ID Hash"
-Write-Host "DEBUG: Combined list: $($combined_client_ids)"
+}
 
 
 
