@@ -26,7 +26,7 @@ Import-Module ".\PS-NCentral"
 
 #! ==== Configuration below ====
 #? Which client are we looking for? (*? wildcards available)
-$customer_name_matching = "*Climate*"
+$customer_name_matching = "*"
 
 #? What name should the endpoint match? (*? wildcards available)
 $asset_name_matching = "*"
