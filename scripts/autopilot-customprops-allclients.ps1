@@ -17,7 +17,7 @@ Import-Module ".\PS-NCentral"
 
 #! ==== Constants below ====
 [String]$api_username = "paul.gummerson+api-ncentral-readonly@sensible.com.au"
-[String]$out_dir_main = ".\scripts\output\autopilot01\"
+[String]$out_dir_main = ".\scripts\output\autopilot02\"
 
 
 
